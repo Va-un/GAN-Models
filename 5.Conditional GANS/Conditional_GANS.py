@@ -10,11 +10,11 @@ from utils import gradient_penalty
 from tqdm import tqdm
 from IMAGER import IMG_GEN
 
-
 """#Model Setup"""
 
+
 class Discriminator(nn.Module):
-    def __init__(self, channels_img, features_d,num_classes,img_size):
+    def __init__(self, channels_img, features_d, num_classes, img_size):
         super(Discriminator, self).__init__()
 
         self.img_size = img_size
@@ -22,7 +22,7 @@ class Discriminator(nn.Module):
         self.disc = nn.Sequential(
             # input: N x channels_img x 64 x 64
             nn.Conv2d(
-                channels_img+1, features_d, kernel_size=4, stride=2, padding=1
+                channels_img + 1, features_d, kernel_size=4, stride=2, padding=1
             ),
             nn.LeakyReLU(0.2),
             # _block(in_channels, out_channels, kernel_size, stride, padding)
@@ -32,7 +32,8 @@ class Discriminator(nn.Module):
             # After all _block img output is 4x4 (Conv2d below makes into 1x1)
             nn.Conv2d(features_d * 8, 1, kernel_size=4, stride=2, padding=0),
         )
-        self.embed = nn.Embedding(num_classes , img_size*img_size)
+        self.embed = nn.Embedding(num_classes, img_size * img_size)
+
     def _block(self, in_channels, out_channels, kernel_size, stride, padding):
         return nn.Sequential(
             nn.Conv2d(
@@ -47,14 +48,14 @@ class Discriminator(nn.Module):
             nn.LeakyReLU(0.2),
         )
 
-    def forward(self, x,labels):
-        embedding = self.embed(labels).view(labels.shape[0],1,self.img_size,self.img_size)
-        x = torch.cat([x,embedding],dim =1) # N x C x img_size(H) x img_size(W)
+    def forward(self, x, labels):
+        embedding = self.embed(labels).view(labels.shape[0], 1, self.img_size, self.img_size)
+        x = torch.cat([x, embedding], dim=1)  # N x C x img_size(H) x img_size(W)
         return self.disc(x)
 
 
 class Generator(nn.Module):
-    def __init__(self, channels_noise, channels_img, features_g,num_classes,img_size,embeed_size):
+    def __init__(self, channels_noise, channels_img, features_g, num_classes, img_size, embeed_size):
         super(Generator, self).__init__()
         self.net = nn.Sequential(
             # Input: N x channels_noise x 1 x 1
@@ -68,7 +69,8 @@ class Generator(nn.Module):
             # Output: N x channels_img x 64 x 64
             nn.Tanh(),
         )
-        self.embed = nn.Embedding(num_classes , embeed_size)
+        self.embed = nn.Embedding(num_classes, embeed_size)
+
     def _block(self, in_channels, out_channels, kernel_size, stride, padding):
         return nn.Sequential(
             nn.ConvTranspose2d(
@@ -83,23 +85,19 @@ class Generator(nn.Module):
             nn.ReLU(),
         )
 
-    def forward(self, x,labels):
+    def forward(self, x, labels):
         embedding = self.embed(labels).unsqueeze(2).unsqueeze(3)
         x = torch.cat([x, embedding], dim=1)
         return self.net(x)
 
 
 def initialize_weights(model):
-
     for m in model.modules():
         if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.BatchNorm2d)):
             nn.init.normal_(m.weight.data, 0.0, 0.02)
 
 
-
-
 """# Training"""
-
 
 # Hyperparameters etc.
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -119,7 +117,7 @@ LAMBDA_GP = 10
 
 transforms = transforms.Compose(
     [
-        transforms.Resize((IMAGE_SIZE,IMAGE_SIZE)),
+        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
         transforms.ToTensor(),
         transforms.Normalize(
             [0.5 for _ in range(CHANNELS_IMG)], [0.5 for _ in range(CHANNELS_IMG)]
@@ -127,9 +125,7 @@ transforms = transforms.Compose(
     ]
 )
 
-
-
-#dataset = datasets.ImageFolder(root="archive", transform=transforms)
+# dataset = datasets.ImageFolder(root="archive", transform=transforms)
 dataset = datasets.MNIST(root="dataset/", transform=transforms)
 loader = DataLoader(
     dataset,
@@ -140,7 +136,7 @@ loader = DataLoader(
 # initialize gen and disc, note: discriminator should be called critic,
 # according to WGAN paper (since it no longer outputs between [0, 1])
 gen = Generator(Z_DIM, CHANNELS_IMG, FEATURES_GEN, NUM_CLASSES, IMAGE_SIZE, GEN_EMBEDDING).to(device)
-critic = Discriminator(CHANNELS_IMG, FEATURES_CRITIC,NUM_CLASSES, IMAGE_SIZE).to(device)
+critic = Discriminator(CHANNELS_IMG, FEATURES_CRITIC, NUM_CLASSES, IMAGE_SIZE).to(device)
 initialize_weights(gen)
 initialize_weights(critic)
 
@@ -170,11 +166,11 @@ for epoch in range(NUM_EPOCHS):
         for _ in range(CRITIC_ITERATIONS):
             noise = torch.randn(cur_batch_size, Z_DIM, 1, 1).to(device)
             fake = gen(noise, labels)
-            critic_real = critic(real ,labels).reshape(-1)
-            critic_fake = critic(fake,labels).reshape(-1)
+            critic_real = critic(real, labels).reshape(-1)
+            critic_fake = critic(fake, labels).reshape(-1)
             gp = gradient_penalty(critic, labels, real, fake, device=device)
             loss_critic = (
-                -(torch.mean(critic_real) - torch.mean(critic_fake)) + LAMBDA_GP * gp
+                    -(torch.mean(critic_real) - torch.mean(critic_fake)) + LAMBDA_GP * gp
             )
             critic.zero_grad()
             loss_critic.backward(retain_graph=True)
@@ -204,8 +200,3 @@ for epoch in range(NUM_EPOCHS):
                 writer_fake.add_image("Fake", img_grid_fake, global_step=step)
                 IMG_GEN(img_grid_real, img_grid_fake)
             step += 1
-
-
-
-
-
